@@ -1,6 +1,9 @@
 import { ButtonLink, Container } from "@/components/ui";
+import { pageContext } from "@/lib/contexte";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const { t } = await pageContext();
+
   return (
     <section className="py-24 sm:py-32">
       <Container className="max-w-[620px] text-center">
@@ -8,16 +11,15 @@ export default function NotFound() {
           Erreur 404
         </p>
         <h1 className="mt-4 text-[2rem] leading-[2.5rem] font-black text-liryc-navy">
-          Cette page n&apos;existe pas
+          {t("error.404Title")}
         </h1>
         <p className="mt-5 text-[1.02rem] leading-relaxed text-liryc-ink">
-          Le lien est peut-être erroné, ou la page a été déplacée. La
-          bibliothèque, elle, est toujours là.
+          {t("error.404Body")}
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-4">
-          <ButtonLink href="/">Retour à l&apos;accueil</ButtonLink>
+          <ButtonLink href="/">{t("error.backHome")}</ButtonLink>
           <ButtonLink href="/ouvrages" variant="secondary">
-            Voir les ouvrages
+            {t("nav.books")}
           </ButtonLink>
         </div>
       </Container>

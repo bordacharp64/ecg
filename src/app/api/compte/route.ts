@@ -1,39 +1,46 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { closeAllSessions, closeSession, currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { downloads, users } from "@/lib/db/schema";
+import { downloads, readers } from "@/lib/db/schema";
+import { currentReader, forgetReader } from "@/lib/lecteur";
 
 /**
- * Droit d'acces (RGPD art. 15) : renvoie l'integralite des donnees
- * du compte au format JSON.
+ * Droit d'acces et de portabilite (RGPD art. 15 et 20) : renvoie l'intégralité
+ * des donnees du lecteur, dans un format lisible et reutilisable.
  */
 export async function GET() {
-  const user = await currentUser();
-  if (!user) {
-    return NextResponse.json({ message: "Non authentifié." }, { status: 401 });
+  const reader = await currentReader();
+  if (!reader) {
+    return NextResponse.json(
+      { message: "Aucune donnée enregistrée sur cet appareil." },
+      { status: 404 },
+    );
   }
 
   const history = await db
-    .select({ bookSlug: downloads.bookSlug, createdAt: downloads.createdAt })
+    .select({
+      bookSlug: downloads.bookSlug,
+      bookLanguage: downloads.bookLanguage,
+      createdAt: downloads.createdAt,
+    })
     .from(downloads)
-    .where(eq(downloads.userId, user.id));
+    .where(eq(downloads.readerId, reader.id));
 
   const payload = {
     exporteLe: new Date().toISOString(),
-    compte: {
-      email: user.email,
-      prenom: user.firstName,
-      nom: user.lastName,
-      profil: user.profile,
-      etablissement: user.institution,
-      pays: user.country,
-      anneeEtudes: user.studyYear,
-      inscritLe: user.createdAt,
-      adresseConfirmeeLe: user.emailVerifiedAt,
-      consentementConfidentialiteLe: user.privacyAcceptedAt,
-      informationsFormation: user.newsletterOptIn,
+    lecteur: {
+      email: reader.email,
+      prenom: reader.firstName,
+      nom: reader.lastName,
+      pays: reader.country,
+      statut: reader.status,
+      faculte: reader.university,
+      langue: reader.language,
+      premierTelechargementLe: reader.createdAt,
+      dernierPassageLe: reader.lastSeenAt,
+      consentementConfidentialiteLe: reader.privacyAcceptedAt,
+      annoncesDeParution: reader.newsletterOptIn,
     },
     telechargements: history,
   };
@@ -50,19 +57,20 @@ export async function GET() {
 }
 
 /**
- * Droit a l'effacement (RGPD art. 17). La suppression est definitive :
- * la cascade sur les cles etrangeres emporte les sessions, les jetons de
- * connexion et l'historique de telechargement.
+ * Droit a l'effacement (RGPD art. 17). Definitif : la cascade sur les cles
+ * etrangeres emporte l'historique de telechargement.
  */
 export async function DELETE() {
-  const user = await currentUser();
-  if (!user) {
-    return NextResponse.json({ message: "Non authentifié." }, { status: 401 });
+  const reader = await currentReader();
+  if (!reader) {
+    return NextResponse.json(
+      { message: "Aucune donnée enregistrée sur cet appareil." },
+      { status: 404 },
+    );
   }
 
-  await closeAllSessions(user.id);
-  await db.delete(users).where(eq(users.id, user.id));
-  await closeSession();
+  await db.delete(readers).where(eq(readers.id, reader.id));
+  await forgetReader();
 
   return NextResponse.json({ ok: true });
 }

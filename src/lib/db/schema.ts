@@ -1,7 +1,6 @@
 import {
   boolean,
   index,
-  integer,
   pgTable,
   text,
   timestamp,
@@ -10,113 +9,100 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * Minimisation des donnees (RGPD, art. 5.1.c) : on ne collecte que ce qui
- * sert reellement au pilotage de la formation. Pas de date de naissance,
- * pas d'adresse postale, pas de telephone.
+ * Un « lecteur » est une personne qui a rempli la fiche d'identification au
+ * moment de son premier telechargement. Il n'y a pas de compte, pas de mot de
+ * passe et pas de connexion : la fiche est le seul point de collecte.
+ *
+ * Minimisation des donnees (RGPD art. 5.1.c) : strictement les champs demandes
+ * par l'equipe formation, plus la trace du consentement. Ni adresse postale,
+ * ni telephone, ni date de naissance, ni adresse IP.
  */
-export const users = pgTable(
-  "users",
+export const readers = pgTable(
+  "readers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
 
-    /** Toujours stocke en minuscules et sans espaces (cf. normalizeEmail). */
+    /** Toujours en minuscules, sans espaces (cf. normalizeEmail). */
     email: text("email").notNull(),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
 
-    /** "etudiant" | "interne" | "medecin" | "paramedical" | "autre" */
-    profile: text("profile").notNull(),
-    /** Etablissement ou faculte declaree, en texte libre. */
-    institution: text("institution").notNull(),
-    /** Code ISO 3166-1 alpha-2, "FR" par defaut. */
-    country: text("country").notNull().default("FR"),
-    /** Annee d'etudes : 1 a 12, ou null pour les profils non etudiants. */
-    studyYear: integer("study_year"),
+    /** Code ISO 3166-1 alpha-2. */
+    country: text("country").notNull(),
+
+    /** Valeur issue de content/statuts.ts : "etudiant-4", "interne"... */
+    status: text("status").notNull(),
+
+    /**
+     * Faculte de medecine. Choisie dans la liste du pays quand elle existe,
+     * saisie librement sinon — d'ou le texte libre plutot qu'une cle etrangere.
+     */
+    university: text("university").notNull(),
 
     /** Consentement explicite et horodate a la politique de confidentialite. */
     privacyAcceptedAt: timestamp("privacy_accepted_at", {
       withTimezone: true,
     }).notNull(),
-    /** Opt-in distinct pour les informations de formation (art. 7 RGPD). */
+
+    /** Opt-in distinct pour les annonces de parution (RGPD art. 7). */
     newsletterOptIn: boolean("newsletter_opt_in").notNull().default(false),
 
-    /** Renseigne au premier clic sur un lien de connexion. */
-    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    /** Langue de l'interface au moment de la saisie : utile aux statistiques. */
+    language: text("language").notNull().default("fr"),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   },
-  (table) => [uniqueIndex("users_email_unique").on(table.email)],
-);
-
-/**
- * Jeton de connexion sans mot de passe ("magic link"). Seul le hash SHA-256
- * du jeton est stocke : une fuite de la base ne permet pas de se connecter.
- */
-export const loginTokens = pgTable(
-  "login_tokens",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    consumedAt: timestamp("consumed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
   (table) => [
-    uniqueIndex("login_tokens_hash_unique").on(table.tokenHash),
-    index("login_tokens_user_idx").on(table.userId),
-  ],
-);
-
-/** Sessions revocables cote serveur : seul le hash de l'identifiant est stocke. */
-export const sessions = pgTable(
-  "sessions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    uniqueIndex("sessions_hash_unique").on(table.tokenHash),
-    index("sessions_user_idx").on(table.userId),
+    uniqueIndex("readers_email_unique").on(table.email),
+    index("readers_country_idx").on(table.country),
   ],
 );
 
 /**
- * Journal des telechargements : sert aux statistiques de diffusion et aux
- * rapports d'activite de la formation. Aucune adresse IP n'est conservee.
+ * Journal des telechargements : statistiques de diffusion et rapports
+ * d'activite de la formation. Aucune adresse IP conservee.
  */
 export const downloads = pgTable(
   "downloads",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    readerId: uuid("reader_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    /** Identifiant du livre tel que defini dans content/livres.ts */
+      .references(() => readers.id, { onDelete: "cascade" }),
+    /** Identifiant de l'ouvrage tel que defini dans content/livres.ts */
     bookSlug: text("book_slug").notNull(),
+    /** Langue de l'ouvrage telecharge, dupliquee pour figer l'historique. */
+    bookLanguage: text("book_language").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    index("downloads_user_idx").on(table.userId),
+    index("downloads_reader_idx").on(table.readerId),
     index("downloads_book_idx").on(table.bookSlug),
   ],
 );
 
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
+/**
+ * Consultations de l'apercu en ligne. Volontairement anonymes : l'apercu est
+ * libre, il n'y a donc personne a rattacher. On ne compte que le volume, ce
+ * qui suffit a mesurer le rapport entre lecture en ligne et telechargement.
+ */
+export const previewViews = pgTable(
+  "preview_views",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bookSlug: text("book_slug").notNull(),
+    bookLanguage: text("book_language").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("preview_views_book_idx").on(table.bookSlug)],
+);
+
+export type Reader = typeof readers.$inferSelect;
+export type NewReader = typeof readers.$inferInsert;

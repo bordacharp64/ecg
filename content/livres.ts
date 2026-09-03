@@ -2,23 +2,27 @@
  * =========================================================================
  *  CATALOGUE DES OUVRAGES
  * =========================================================================
- *  C'est le seul fichier a modifier pour changer les textes, les titres, les
- *  sommaires ou ajouter un livre. Aucune connaissance de programmation n'est
- *  necessaire : il suffit de respecter les guillemets et les virgules.
+ *  Un ouvrage = une oeuvre dans une langue. La traduction anglaise du
+ *  volume 1 est donc une seconde entree, avec le meme `work` mais
+ *  `language: "en"`. C'est ce qui permet au site de proposer d'abord la
+ *  version dans la langue du visiteur.
  *
- *  Pour chaque livre :
- *    slug        identifiant technique dans l'URL (minuscules, tirets, sans accent)
- *    fileName    nom exact du fichier PDF depose dans le stockage prive
- *    title       titre affiche
- *    subtitle    sous-titre court
- *    volume      numero affiche sur la couverture ("Volume 1", ...)
+ *  POUR CHAQUE OUVRAGE
+ *    slug        identifiant dans l'URL (minuscules, tirets, sans accent)
+ *    work        identifiant de l'oeuvre, commun a toutes ses traductions
+ *    language    code de langue ISO 639-1 : "fr", "en", "es", "de", "it"...
+ *    fileName    nom exact du PDF depose dans le stockage prive
+ *    volume      numero du volume dans la collection (1, 2, 3, 4...)
  *    accent      couleur de la vignette : "teal" | "cyan" | "orange" | "green" | "purple"
- *    published   false = le livre apparait comme "a paraitre" et n'est pas telechargeable
- *    pages       nombre de pages (affiche a titre indicatif)
- *    updatedAt   date de la derniere version, au format "AAAA-MM"
- *    description 1 a 3 phrases de presentation
- *    highlights  points forts affiches en liste a puces
- *    contents    sommaire abrege
+ *    published   false = affiche « a paraitre », ni apercu ni telechargement
+ *    previewPages nombre de pages consultables en ligne sans telechargement
+ *    coverImage  chemin dans public/, ou null pour la couverture generee
+ *    pages       nombre de pages de l'ouvrage complet (indicatif)
+ *    updatedAt   date de la version en ligne, au format "AAAA-MM"
+ *
+ *  AJOUTER UNE TRADUCTION
+ *  Dupliquez l'entree, changez `slug`, `language`, `fileName` et traduisez
+ *  les textes. Gardez le meme `work` et le meme `volume`.
  * =========================================================================
  */
 
@@ -26,12 +30,16 @@ export type BookAccent = "teal" | "cyan" | "orange" | "green" | "purple";
 
 export type Book = {
   slug: string;
+  work: string;
+  language: string;
   fileName: string;
   title: string;
   subtitle: string;
-  volume: string;
+  volume: number;
   accent: BookAccent;
   published: boolean;
+  previewPages: number;
+  coverImage: string | null;
   pages: number | null;
   updatedAt: string;
   description: string;
@@ -40,14 +48,21 @@ export type Book = {
 };
 
 export const books: Book[] = [
+  // =======================================================================
+  //  VOLUME 1 — Semiologie
+  // =======================================================================
   {
     slug: "semiologie-electrocardiographique",
-    fileName: "semiologie-electrocardiographique.pdf",
+    work: "semiologie",
+    language: "fr",
+    fileName: "semiologie-electrocardiographique-fr.pdf",
     title: "Sémiologie électrocardiographique",
     subtitle: "Lire un ECG : la grammaire du tracé",
-    volume: "Volume 1",
+    volume: 1,
     accent: "teal",
     published: true,
+    previewPages: 20,
+    coverImage: null,
     pages: null,
     updatedAt: "2026-09",
     description:
@@ -68,18 +83,21 @@ export const books: Book[] = [
   },
 
   // -----------------------------------------------------------------------
-  // A COMPLETER : les trois volumes suivants. Remplacez les titres et les
-  // textes ci-dessous par les intitules reels, puis passez `published` a
-  // true quand le PDF correspondant est en ligne.
+  // A COMPLETER : titres et textes reels des volumes 2 a 4, puis passer
+  // `published` a true quand le PDF correspondant est en ligne.
   // -----------------------------------------------------------------------
   {
     slug: "troubles-du-rythme",
-    fileName: "troubles-du-rythme.pdf",
+    work: "rythme",
+    language: "fr",
+    fileName: "troubles-du-rythme-fr.pdf",
     title: "Les troubles du rythme",
     subtitle: "Reconnaître et classer les arythmies",
-    volume: "Volume 2",
+    volume: 2,
     accent: "cyan",
     published: false,
+    previewPages: 20,
+    coverImage: null,
     pages: null,
     updatedAt: "2026-09",
     description:
@@ -99,12 +117,16 @@ export const books: Book[] = [
   },
   {
     slug: "troubles-de-la-conduction",
-    fileName: "troubles-de-la-conduction.pdf",
+    work: "conduction",
+    language: "fr",
+    fileName: "troubles-de-la-conduction-fr.pdf",
     title: "Les troubles de la conduction",
     subtitle: "Blocs sino-auriculaires, atrio-ventriculaires et de branche",
-    volume: "Volume 3",
+    volume: 3,
     accent: "purple",
     published: false,
+    previewPages: 20,
+    coverImage: null,
     pages: null,
     updatedAt: "2026-09",
     description:
@@ -124,12 +146,16 @@ export const books: Book[] = [
   },
   {
     slug: "ecg-et-ischemie-myocardique",
-    fileName: "ecg-et-ischemie-myocardique.pdf",
+    work: "ischemie",
+    language: "fr",
+    fileName: "ecg-et-ischemie-myocardique-fr.pdf",
     title: "ECG et ischémie myocardique",
     subtitle: "L'urgence coronaire sur le tracé",
-    volume: "Volume 4",
+    volume: 4,
     accent: "orange",
     published: false,
+    previewPages: 20,
+    coverImage: null,
     pages: null,
     updatedAt: "2026-09",
     description:
@@ -147,10 +173,64 @@ export const books: Book[] = [
       "Les pièges : repolarisation précoce, péricardite, Brugada, embolie pulmonaire",
     ],
   },
+
+  // =======================================================================
+  //  TRADUCTIONS
+  // =======================================================================
+  //  Exemple de traduction anglaise du volume 1, laissee en « a paraitre ».
+  //  Elle sert de gabarit : dupliquez-la pour chaque nouvelle langue. Tant
+  //  que `published` vaut false, elle n'apparait que comme annonce.
+  {
+    slug: "electrocardiographic-semiology",
+    work: "semiologie",
+    language: "en",
+    fileName: "semiologie-electrocardiographique-en.pdf",
+    title: "Electrocardiographic Semiology",
+    subtitle: "Reading an ECG: the grammar of the tracing",
+    volume: 1,
+    accent: "teal",
+    published: false,
+    previewPages: 20,
+    coverImage: null,
+    pages: null,
+    updatedAt: "2026-09",
+    description:
+      "The starting point of the collection. Signal by signal, this volume covers the semiology of the normal and abnormal electrocardiogram, from the genesis of the action potential to the systematic reading of the twelve leads. The tracings are interactive: measurements, calibration and labels are revealed on hover.",
+    highlights: [
+      "A systematic reading method, usable on the ward from day one",
+      "Over 100 annotated, clickable real-world tracings",
+      "The classic interpretation pitfalls, flagged throughout",
+    ],
+    contents: [
+      "Genesis and propagation of cardiac activation",
+      "The leads: construction and vector projection",
+      "P wave, PR interval, QRS complex, ST segment, T wave, U wave",
+      "The electrical axis and how to compute it",
+      "The eight-step reading method",
+      "Normal variants by age and body habitus",
+    ],
+  },
 ];
 
 export function getBook(slug: string): Book | undefined {
   return books.find((book) => book.slug === slug);
 }
 
-export const publishedBooks = () => books.filter((book) => book.published);
+/** Toutes les langues effectivement presentes au catalogue. */
+export function catalogueLanguages(): string[] {
+  return [...new Set(books.map((book) => book.language))];
+}
+
+/** Langues dans lesquelles au moins un ouvrage est telechargeable. */
+export function publishedLanguages(): string[] {
+  return [
+    ...new Set(books.filter((book) => book.published).map((b) => b.language)),
+  ];
+}
+
+/** Les traductions d'une meme oeuvre, la version donnee exclue. */
+export function translationsOf(book: Book): Book[] {
+  return books.filter(
+    (other) => other.work === book.work && other.slug !== book.slug,
+  );
+}

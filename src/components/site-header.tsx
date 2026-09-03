@@ -1,28 +1,35 @@
 import Link from "next/link";
 
+import { LanguagePicker } from "@/components/language-picker";
 import { Container } from "@/components/ui";
-import type { User } from "@/lib/db/schema";
+import type { Translator } from "@/lib/i18n";
 
-const navigation = [
-  { href: "/", label: "Accueil" },
-  { href: "/ouvrages", label: "Les ouvrages" },
-  { href: "/la-collection", label: "La collection" },
-  { href: "/aide", label: "Aide à la lecture" },
-];
+export function SiteHeader({
+  t,
+  currentPath,
+}: {
+  t: Translator;
+  currentPath: string;
+}) {
+  const navigation = [
+    { href: "/", label: t("nav.home") },
+    { href: "/ouvrages", label: t("nav.books") },
+    { href: "/la-collection", label: t("nav.collection") },
+    { href: "/aide", label: t("nav.help") },
+  ];
 
-export function SiteHeader({ user }: { user: User | null }) {
   return (
     <header className="sticky top-0 z-50 border-b border-liryc-line bg-white/95 backdrop-blur">
       <Container className="flex min-h-[72px] items-center justify-between gap-4 py-2 sm:gap-6">
         <Link
           href="/"
           className="flex items-center gap-3"
-          aria-label="Bibliothèque ECG, IHU Liryc — retour à l'accueil"
+          aria-label={t("brand.homeLabel")}
         >
           {/* Emplacement du logo officiel : remplacer par public/logo-liryc.svg */}
           <span
             aria-hidden="true"
-            className="flex h-10 w-10 items-center justify-center bg-liryc-navy"
+            className="flex h-10 w-10 shrink-0 items-center justify-center bg-liryc-navy"
           >
             <svg viewBox="0 0 40 24" className="h-5 w-7" role="presentation">
               <path
@@ -37,18 +44,18 @@ export function SiteHeader({ user }: { user: User | null }) {
           </span>
           <span className="leading-tight">
             <span className="block text-[1.05rem] font-black tracking-tight text-liryc-navy">
-              Bibliothèque ECG
+              {t("brand.title")}
             </span>
-            {/* Le surtitre est masque sur les ecrans les plus etroits :
-                sur deux lignes, il faisait deborder la barre. */}
+            {/* Masque sur les ecrans etroits : sur deux lignes, il faisait
+                deborder la barre. */}
             <span className="hidden text-[0.7rem] font-bold tracking-[0.14em] text-liryc-teal uppercase sm:block">
-              IHU Liryc · Formation
+              {t("brand.subtitle")}
             </span>
           </span>
         </Link>
 
         <nav
-          aria-label="Navigation principale"
+          aria-label={t("nav.mainLabel")}
           className="hidden items-center gap-7 lg:flex"
         >
           {navigation.map((item) => (
@@ -62,57 +69,49 @@ export function SiteHeader({ user }: { user: User | null }) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-4">
-          {user ? (
-            <>
-              <Link
-                href="/mon-compte"
-                className="hidden text-[0.9rem] font-bold text-liryc-teal hover:text-liryc-navy sm:inline"
-              >
-                {user.firstName}
-              </Link>
-              <Link
-                href="/bibliotheque"
-                className="shrink-0 bg-liryc-teal px-4 py-2.5 text-[0.9rem] font-bold whitespace-nowrap text-white transition-colors hover:bg-liryc-navy sm:px-5"
-              >
-                <span className="sm:hidden">Mes livres</span>
-                <span className="hidden sm:inline">Ma bibliothèque</span>
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/connexion"
-                className="hidden text-[0.9rem] font-bold text-liryc-teal hover:text-liryc-navy sm:inline"
-              >
-                Se connecter
-              </Link>
-              <Link
-                href="/inscription"
-                className="shrink-0 bg-liryc-teal px-4 py-2.5 text-[0.9rem] font-bold whitespace-nowrap text-white transition-colors hover:bg-liryc-navy sm:px-5"
-              >
-                S&apos;inscrire
-              </Link>
-            </>
-          )}
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="hidden sm:block">
+            <LanguagePicker
+              language={t.language}
+              currentPath={currentPath}
+              label={t("lang.label")}
+              chooseLabel={t("lang.chooseLabel")}
+            />
+          </div>
+          <Link
+            href="/ouvrages"
+            className="shrink-0 bg-liryc-teal px-4 py-2.5 text-[0.9rem] font-bold whitespace-nowrap text-white transition-colors hover:bg-liryc-navy sm:px-5"
+          >
+            {t("nav.books")}
+          </Link>
         </div>
       </Container>
 
       {/* Navigation repliee sur mobile : une seule ligne defilante. */}
       <nav
-        aria-label="Navigation principale (mobile)"
+        aria-label={t("nav.mainLabel")}
         className="border-t border-liryc-line lg:hidden"
       >
-        <Container className="flex gap-5 overflow-x-auto py-3">
-          {navigation.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="shrink-0 text-[0.85rem] font-bold text-liryc-navy"
-            >
-              {item.label}
-            </Link>
-          ))}
+        <Container className="flex items-center justify-between gap-5 py-3">
+          <div className="flex gap-5 overflow-x-auto">
+            {navigation.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="shrink-0 text-[0.85rem] font-bold text-liryc-navy"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+          <div className="shrink-0 sm:hidden">
+            <LanguagePicker
+              language={t.language}
+              currentPath={currentPath}
+              label={t("lang.label")}
+              chooseLabel={t("lang.chooseLabel")}
+            />
+          </div>
         </Container>
       </nav>
     </header>

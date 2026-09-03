@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { Button, Notice } from "@/components/ui";
 
-export function AccountActions() {
+export function DataActions({ labels }: { labels: Record<string, string> }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
@@ -18,13 +18,13 @@ export function AccountActions() {
     try {
       const response = await fetch("/api/compte", { method: "DELETE" });
       if (!response.ok) {
-        setError("La suppression a échoué. Réessayez ou écrivez-nous.");
+        setError(labels.deleteFailed);
         return;
       }
       router.push("/");
       router.refresh();
     } catch {
-      setError("Le serveur n'a pas répondu. Réessayez.");
+      setError(labels.deleteFailed);
     } finally {
       setPending(false);
     }
@@ -36,17 +36,15 @@ export function AccountActions() {
 
       {!confirming ? (
         <Button variant="secondary" onClick={() => setConfirming(true)}>
-          Supprimer mon compte
+          {labels.delete}
         </Button>
       ) : (
         <div className="border-l-4 border-liryc-red bg-[#fdf0f2] p-6">
           <p className="font-bold text-liryc-navy">
-            Confirmer la suppression définitive ?
+            {labels.deleteConfirmTitle}
           </p>
           <p className="mt-2 text-[0.93rem] leading-relaxed text-liryc-ink">
-            Votre compte, vos informations et votre historique de
-            téléchargement seront effacés sans possibilité de restauration. Les
-            PDF déjà enregistrés sur vos appareils ne sont pas concernés.
+            {labels.deleteConfirmBody}
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button
@@ -54,14 +52,14 @@ export function AccountActions() {
               disabled={pending}
               className="bg-liryc-red hover:bg-[#b30224]"
             >
-              {pending ? "Suppression…" : "Oui, supprimer définitivement"}
+              {labels.deleteConfirm}
             </Button>
             <Button
               variant="secondary"
               onClick={() => setConfirming(false)}
               disabled={pending}
             >
-              Annuler
+              {labels.cancel}
             </Button>
           </div>
         </div>

@@ -1,17 +1,18 @@
 import type { Metadata, Viewport } from "next";
 import { Lato } from "next/font/google";
+import { headers } from "next/headers";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { currentUser } from "@/lib/auth";
+import { pageContext } from "@/lib/contexte";
+import { CHEMIN_HEADER } from "@/middleware";
 
 import "./globals.css";
 
 /**
  * Lato : la police du site institutionnel ihu-liryc.fr. Servie depuis le
- * domaine du site (et non depuis Google) pour eviter tout transfert de
- * donnees vers un tiers, conformement a la doctrine CNIL sur les polices
- * distantes.
+ * domaine du site (et non depuis Google) pour eviter tout transfert de donnees
+ * vers un tiers, conformement a la doctrine CNIL sur les polices distantes.
  */
 const lato = Lato({
   subsets: ["latin", "latin-ext"],
@@ -27,14 +28,13 @@ export const metadata: Metadata = {
     template: "%s · Bibliothèque ECG · IHU Liryc",
   },
   description:
-    "Quatre ouvrages d'interprétation de l'électrocardiogramme, en PDF interactif, offerts aux étudiants en médecine par l'IHU Liryc.",
+    "Des ouvrages d'interprétation de l'électrocardiogramme, en PDF interactif, offerts aux étudiants en médecine par l'IHU Liryc. Vingt pages consultables en ligne avant téléchargement.",
   openGraph: {
     type: "website",
-    locale: "fr_FR",
     siteName: "Bibliothèque ECG · IHU Liryc",
     title: "Bibliothèque ECG · IHU Liryc",
     description:
-      "Quatre ouvrages d'interprétation de l'ECG, en PDF interactif, offerts aux étudiants en médecine.",
+      "Des ouvrages d'interprétation de l'ECG, en PDF interactif, offerts aux étudiants en médecine.",
   },
   robots: { index: true, follow: true },
 };
@@ -50,22 +50,27 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await currentUser().catch(() => null);
+  const { language, t } = await pageContext();
+
+  // Le chemin courant, pose par le middleware, permet au selecteur de langue
+  // de ramener le visiteur sur la page qu'il consultait, et non sur l'accueil.
+  const headerList = await headers();
+  const currentPath = headerList.get(CHEMIN_HEADER) ?? "/";
 
   return (
-    <html lang="fr" className={lato.variable}>
+    <html lang={language} className={lato.variable}>
       <body className="flex min-h-screen flex-col antialiased">
         <a
           href="#contenu"
           className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:bg-liryc-navy focus:px-4 focus:py-2 focus:font-bold focus:text-white"
         >
-          Aller au contenu principal
+          {t("nav.skipToContent")}
         </a>
-        <SiteHeader user={user} />
+        <SiteHeader t={t} currentPath={currentPath} />
         <main id="contenu" className="flex-1">
           {children}
         </main>
-        <SiteFooter />
+        <SiteFooter t={t} />
       </body>
     </html>
   );

@@ -11,14 +11,15 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // Espaces personnels et fichiers : rien a indexer.
+        // Espaces personnels, aperçus et fichiers : rien a indexer. Les
+        // aperçus sont exclus pour que ce soit la fiche de l'ouvrage qui
+        // remonte dans les resultats, et non un lecteur PDF sans contexte.
         disallow: [
-          "/bibliotheque",
-          "/mon-compte",
+          "/mes-donnees",
           "/admin",
           "/api/",
-          "/auth/",
-          "/connexion",
+          "/ouvrages/*/apercu",
+          "/ouvrages/*/telecharger",
         ],
       },
     ],

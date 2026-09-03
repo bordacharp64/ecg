@@ -1,11 +1,13 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { currentUser, isAdminEmail } from "@/lib/auth";
+import { countryName } from "#content/pays.ts";
+import { getStatus } from "#content/statuts.ts";
 import { db } from "@/lib/db";
-import { downloads, users } from "@/lib/db/schema";
+import { downloads, readers } from "@/lib/db/schema";
+import { currentReader, isAdminEmail } from "@/lib/lecteur";
 
-/** Echappement CSV : guillemets doubles et separateur point-virgule (Excel FR). */
+/** Echappement CSV : guillemets doubles, separateur point-virgule (Excel FR). */
 function csvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = String(value);
@@ -13,41 +15,43 @@ function csvCell(value: unknown): string {
 }
 
 export async function GET() {
-  const user = await currentUser();
-  if (!user || !isAdminEmail(user.email)) {
+  const reader = await currentReader();
+  if (!reader || !isAdminEmail(reader.email)) {
     return NextResponse.json({ message: "Non autorisé." }, { status: 404 });
   }
 
   const rows = await db
     .select({
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      profile: users.profile,
-      institution: users.institution,
-      country: users.country,
-      studyYear: users.studyYear,
-      newsletterOptIn: users.newsletterOptIn,
-      createdAt: users.createdAt,
-      emailVerifiedAt: users.emailVerifiedAt,
+      email: readers.email,
+      firstName: readers.firstName,
+      lastName: readers.lastName,
+      country: readers.country,
+      status: readers.status,
+      university: readers.university,
+      language: readers.language,
+      newsletterOptIn: readers.newsletterOptIn,
+      createdAt: readers.createdAt,
+      lastSeenAt: readers.lastSeenAt,
       downloadCount: sql<number>`(
-        select count(*) from ${downloads} where ${downloads.userId} = ${users.id}
+        select count(*) from ${downloads} where ${downloads.readerId} = ${readers.id}
       )`,
     })
-    .from(users)
-    .orderBy(desc(users.createdAt));
+    .from(readers)
+    .orderBy(desc(readers.createdAt));
 
   const header = [
     "email",
     "prenom",
     "nom",
-    "profil",
-    "etablissement",
+    "pays_code",
     "pays",
-    "annee_etudes",
-    "actualites",
-    "inscrit_le",
-    "adresse_confirmee_le",
+    "statut_code",
+    "statut",
+    "faculte",
+    "langue_interface",
+    "annonces_parution",
+    "premier_telechargement_le",
+    "dernier_passage_le",
     "nb_telechargements",
   ];
 
@@ -56,13 +60,15 @@ export async function GET() {
       row.email,
       row.firstName,
       row.lastName,
-      row.profile,
-      row.institution,
       row.country,
-      row.studyYear ?? "",
+      countryName(row.country, "fr"),
+      row.status,
+      getStatus(row.status)?.label ?? row.status,
+      row.university,
+      row.language,
       row.newsletterOptIn ? "oui" : "non",
       row.createdAt.toISOString(),
-      row.emailVerifiedAt?.toISOString() ?? "",
+      row.lastSeenAt?.toISOString() ?? "",
       row.downloadCount,
     ]
       .map(csvCell)
@@ -77,7 +83,7 @@ export async function GET() {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="inscriptions-ecg-${stamp}.csv"`,
+      "Content-Disposition": `attachment; filename="lecteurs-ecg-${stamp}.csv"`,
       "Cache-Control": "private, no-store",
     },
   });

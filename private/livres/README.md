@@ -2,27 +2,37 @@
 
 Ce dossier reçoit les fichiers PDF des ouvrages **lorsque
 `STORAGE_DRIVER="local"`**. Il est volontairement placé hors de `public/` :
-aucun fichier qui s'y trouve n'est accessible par une URL directe. Tout
-téléchargement passe par `/api/telechargement/<slug>`, qui vérifie la session.
+aucun fichier qui s'y trouve n'est accessible par une URL directe.
+
+- Le **PDF complet** ne sort que par `/api/telechargement/<slug>`, qui vérifie
+  que la fiche d'identification a été remplie.
+- L'**aperçu** sort par `/api/apercu/<slug>`, qui reconstruit à la volée un PDF
+  ne contenant que les premières pages. Le fichier complet ne quitte jamais le
+  serveur avant identification.
 
 ## Nommer les fichiers
 
 Le nom du fichier déposé ici doit correspondre **exactement** au champ
-`fileName` défini dans `content/livres.ts`. Par exemple :
+`fileName` défini dans `content/livres.ts`. Le suffixe de langue évite de
+confondre un volume et sa traduction :
 
-| `fileName` dans `content/livres.ts`         | Fichier à déposer ici                        |
-| ------------------------------------------- | -------------------------------------------- |
-| `semiologie-electrocardiographique.pdf`     | `semiologie-electrocardiographique.pdf`      |
-| `troubles-du-rythme.pdf`                    | `troubles-du-rythme.pdf`                     |
-| `troubles-de-la-conduction.pdf`             | `troubles-de-la-conduction.pdf`              |
-| `ecg-et-ischemie-myocardique.pdf`           | `ecg-et-ischemie-myocardique.pdf`            |
+| `fileName` dans `content/livres.ts`          | Fichier à déposer ici                          |
+| -------------------------------------------- | ---------------------------------------------- |
+| `semiologie-electrocardiographique-fr.pdf`   | `semiologie-electrocardiographique-fr.pdf`     |
+| `troubles-du-rythme-fr.pdf`                  | `troubles-du-rythme-fr.pdf`                    |
+| `troubles-de-la-conduction-fr.pdf`           | `troubles-de-la-conduction-fr.pdf`             |
+| `ecg-et-ischemie-myocardique-fr.pdf`         | `ecg-et-ischemie-myocardique-fr.pdf`           |
+| `semiologie-electrocardiographique-en.pdf`   | `semiologie-electrocardiographique-en.pdf`     |
+
+En cas d'oubli, la page `/admin` affiche une alerte nommant les fichiers
+manquants : c'est le premier endroit à regarder si un téléchargement échoue.
 
 ## Mettre un ouvrage à jour
 
-Remplacez le fichier par la nouvelle version en conservant le même nom, puis
-mettez à jour le champ `updatedAt` dans `content/livres.ts`. Les étudiants
-téléchargeront la nouvelle version à leur prochain passage, sans rien avoir à
-faire.
+Remplacez le fichier par la nouvelle version **en conservant le même nom**,
+puis mettez à jour le champ `updatedAt` dans `content/livres.ts`. L'aperçu est
+mis en cache trente minutes : au-delà, il reflète automatiquement la nouvelle
+version. Pour le rafraîchir tout de suite, redémarrez l'application.
 
 ## Important
 

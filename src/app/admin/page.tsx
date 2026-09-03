@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { count, desc, eq, sql } from "drizzle-orm";
+import { count, desc, sql } from "drizzle-orm";
 
-import { books } from "@/../content/livres";
+import { books } from "#content/livres.ts";
+import { countryName } from "#content/pays.ts";
+import { getStatus } from "#content/statuts.ts";
 import { Container } from "@/components/ui";
-import { currentUser, isAdminEmail } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { downloads, users } from "@/lib/db/schema";
+import { downloads, previewViews, readers } from "@/lib/db/schema";
+import { languageName } from "@/lib/langue";
+import { currentReader, isAdminEmail } from "@/lib/lecteur";
 import { localFileExists, storageDriver } from "@/lib/storage";
 
 export const metadata: Metadata = {
@@ -16,66 +18,98 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
-  const user = await currentUser();
+  const reader = await currentReader().catch(() => null);
 
-  // Un visiteur non autorise ne doit pas apprendre que cette page existe.
-  if (!user || !isAdminEmail(user.email)) notFound();
+  // Un visiteur non autorise ne doit pas apprendre que cette page existe :
+  // 404 plutot que 403.
+  if (!reader || !isAdminEmail(reader.email)) {
+    const { notFound } = await import("next/navigation");
+    notFound();
+  }
 
-  const [[totals], perBook, perInstitution, perProfile, recent] =
-    await Promise.all([
-      db
-        .select({
-          inscrits: count(),
-          confirmes: sql<number>`count(${users.emailVerifiedAt})`,
-          abonnes: sql<number>`count(*) filter (where ${users.newsletterOptIn})`,
-        })
-        .from(users),
+  const [
+    [totals],
+    perBook,
+    perPreview,
+    perCountry,
+    perStatus,
+    perUniversity,
+    perLanguage,
+    recent,
+  ] = await Promise.all([
+    db
+      .select({
+        lecteurs: count(),
+        abonnes: sql<number>`count(*) filter (where ${readers.newsletterOptIn})`,
+      })
+      .from(readers),
 
-      db
-        .select({ slug: downloads.bookSlug, total: count() })
-        .from(downloads)
-        .groupBy(downloads.bookSlug)
-        .orderBy(desc(count())),
+    db
+      .select({ slug: downloads.bookSlug, total: count() })
+      .from(downloads)
+      .groupBy(downloads.bookSlug),
 
-      db
-        .select({ institution: users.institution, total: count() })
-        .from(users)
-        .groupBy(users.institution)
-        .orderBy(desc(count()))
-        .limit(15),
+    db
+      .select({ slug: previewViews.bookSlug, total: count() })
+      .from(previewViews)
+      .groupBy(previewViews.bookSlug),
 
-      db
-        .select({ profile: users.profile, total: count() })
-        .from(users)
-        .groupBy(users.profile)
-        .orderBy(desc(count())),
+    db
+      .select({ country: readers.country, total: count() })
+      .from(readers)
+      .groupBy(readers.country)
+      .orderBy(desc(count()))
+      .limit(15),
 
-      db
-        .select({
-          firstName: users.firstName,
-          lastName: users.lastName,
-          institution: users.institution,
-          createdAt: users.createdAt,
-        })
-        .from(users)
-        .orderBy(desc(users.createdAt))
-        .limit(10),
-    ]);
+    db
+      .select({ status: readers.status, total: count() })
+      .from(readers)
+      .groupBy(readers.status)
+      .orderBy(desc(count())),
+
+    db
+      .select({ university: readers.university, total: count() })
+      .from(readers)
+      .groupBy(readers.university)
+      .orderBy(desc(count()))
+      .limit(15),
+
+    db
+      .select({ language: downloads.bookLanguage, total: count() })
+      .from(downloads)
+      .groupBy(downloads.bookLanguage)
+      .orderBy(desc(count())),
+
+    db
+      .select({
+        firstName: readers.firstName,
+        lastName: readers.lastName,
+        university: readers.university,
+        country: readers.country,
+        createdAt: readers.createdAt,
+      })
+      .from(readers)
+      .orderBy(desc(readers.createdAt))
+      .limit(10),
+  ]);
 
   const totalDownloads = perBook.reduce((sum, row) => sum + row.total, 0);
+  const totalPreviews = perPreview.reduce((sum, row) => sum + row.total, 0);
 
-  // En stockage local, on peut verifier que chaque PDF annonce est bien depose :
+  // En stockage local, on verifie que chaque PDF annonce est bien depose :
   // c'est la panne la plus courante a la mise en ligne d'un nouveau volume.
-  const isLocalStorage = storageDriver() === "local";
-  const missingFiles = isLocalStorage
-    ? books.filter((book) => book.published && !localFileExists(book.fileName))
-    : [];
+  const missingFiles =
+    storageDriver() === "local"
+      ? books.filter(
+          (book) => book.published && !localFileExists(book.fileName),
+        )
+      : [];
 
   const cards = [
-    { label: "Comptes créés", value: totals?.inscrits ?? 0 },
-    { label: "Adresses confirmées", value: Number(totals?.confirmes ?? 0) },
+    { label: "Lecteurs identifiés", value: totals?.lecteurs ?? 0 },
     { label: "Téléchargements", value: totalDownloads },
-    { label: "Abonnés aux actualités", value: Number(totals?.abonnes ?? 0) },
+    { label: "Aperçus consultés", value: totalPreviews },
+    { label: "Abonnés aux parutions", value: Number(totals?.abonnes ?? 0) },
   ];
 
   return (
@@ -109,8 +143,8 @@ export default async function AdminPage() {
                 ))}
               </ul>
               <p className="mt-3 text-[0.93rem] text-liryc-ink">
-                Le téléchargement échouera pour les étudiants tant que ces
-                fichiers ne sont pas déposés dans le dossier de stockage.
+                Le téléchargement et l&apos;aperçu échoueront tant que ces
+                fichiers ne sont pas déposés.
               </p>
             </div>
           ) : null}
@@ -131,51 +165,95 @@ export default async function AdminPage() {
             ))}
           </div>
 
-          <div className="grid gap-12 lg:grid-cols-2">
-            <div>
-              <h2 className="text-title-3 leading-title-3 text-liryc-teal">
-                Par ouvrage
-              </h2>
-              <table className="mt-5 w-full text-[0.93rem]">
+          {/* Par ouvrage : aperçus et telechargements cote a cote, pour voir
+              quels volumes convertissent la consultation en telechargement. */}
+          <div>
+            <h2 className="text-title-3 leading-title-3 text-liryc-teal">
+              Par ouvrage
+            </h2>
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full min-w-[560px] text-[0.93rem]">
                 <thead>
                   <tr className="border-b-2 border-liryc-navy text-left">
                     <th className="pb-2 font-bold">Ouvrage</th>
+                    <th className="pb-2 font-bold">Langue</th>
+                    <th className="pb-2 text-right font-bold">Aperçus</th>
                     <th className="pb-2 text-right font-bold">
                       Téléchargements
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {books.map((book) => {
-                    const row = perBook.find((r) => r.slug === book.slug);
-                    return (
-                      <tr key={book.slug} className="border-b border-liryc-line">
-                        <td className="py-2.5">{book.title}</td>
-                        <td className="py-2.5 text-right font-bold">
-                          {row?.total ?? 0}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {books.map((book) => (
+                    <tr key={book.slug} className="border-b border-liryc-line">
+                      <td className="py-2.5">
+                        {book.title}
+                        {!book.published ? (
+                          <span className="ml-2 text-liryc-ink">
+                            (à paraître)
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-2.5">
+                        {languageName(book.language, "fr")}
+                      </td>
+                      <td className="py-2.5 text-right">
+                        {perPreview.find((r) => r.slug === book.slug)?.total ?? 0}
+                      </td>
+                      <td className="py-2.5 text-right font-bold">
+                        {perBook.find((r) => r.slug === book.slug)?.total ?? 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="grid gap-12 lg:grid-cols-2">
+            <div>
+              <h2 className="text-title-3 leading-title-3 text-liryc-teal">
+                Par statut
+              </h2>
+              <table className="mt-5 w-full text-[0.93rem]">
+                <thead>
+                  <tr className="border-b-2 border-liryc-navy text-left">
+                    <th className="pb-2 font-bold">Statut</th>
+                    <th className="pb-2 text-right font-bold">Lecteurs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {perStatus.map((row) => (
+                    <tr key={row.status} className="border-b border-liryc-line">
+                      <td className="py-2.5">
+                        {getStatus(row.status)?.label ?? row.status}
+                      </td>
+                      <td className="py-2.5 text-right font-bold">
+                        {row.total}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
             <div>
               <h2 className="text-title-3 leading-title-3 text-liryc-teal">
-                Par profil
+                Par pays
               </h2>
               <table className="mt-5 w-full text-[0.93rem]">
                 <thead>
                   <tr className="border-b-2 border-liryc-navy text-left">
-                    <th className="pb-2 font-bold">Profil</th>
-                    <th className="pb-2 text-right font-bold">Comptes</th>
+                    <th className="pb-2 font-bold">Pays</th>
+                    <th className="pb-2 text-right font-bold">Lecteurs</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {perProfile.map((row) => (
-                    <tr key={row.profile} className="border-b border-liryc-line">
-                      <td className="py-2.5">{row.profile}</td>
+                  {perCountry.map((row) => (
+                    <tr key={row.country} className="border-b border-liryc-line">
+                      <td className="py-2.5">
+                        {countryName(row.country, "fr")}
+                      </td>
                       <td className="py-2.5 text-right font-bold">
                         {row.total}
                       </td>
@@ -189,22 +267,22 @@ export default async function AdminPage() {
           <div className="grid gap-12 lg:grid-cols-2">
             <div>
               <h2 className="text-title-3 leading-title-3 text-liryc-teal">
-                Principaux établissements
+                Principales facultés
               </h2>
               <table className="mt-5 w-full text-[0.93rem]">
                 <thead>
                   <tr className="border-b-2 border-liryc-navy text-left">
-                    <th className="pb-2 font-bold">Établissement</th>
-                    <th className="pb-2 text-right font-bold">Comptes</th>
+                    <th className="pb-2 font-bold">Faculté</th>
+                    <th className="pb-2 text-right font-bold">Lecteurs</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {perInstitution.map((row) => (
+                  {perUniversity.map((row) => (
                     <tr
-                      key={row.institution}
+                      key={row.university}
                       className="border-b border-liryc-line"
                     >
-                      <td className="py-2.5">{row.institution}</td>
+                      <td className="py-2.5">{row.university}</td>
                       <td className="py-2.5 text-right font-bold">
                         {row.total}
                       </td>
@@ -214,30 +292,63 @@ export default async function AdminPage() {
               </table>
             </div>
 
-            <div>
-              <h2 className="text-title-3 leading-title-3 text-liryc-teal">
-                Dernières inscriptions
-              </h2>
-              <ul className="mt-5 space-y-2.5 text-[0.93rem]">
-                {recent.map((row, index) => (
-                  <li
-                    key={index}
-                    className="flex flex-wrap justify-between gap-3 border-b border-liryc-line pb-2.5"
-                  >
-                    <span>
-                      <strong>
-                        {row.firstName} {row.lastName}
-                      </strong>{" "}
-                      <span className="text-liryc-ink">
-                        · {row.institution}
+            <div className="space-y-12">
+              <div>
+                <h2 className="text-title-3 leading-title-3 text-liryc-teal">
+                  Par langue téléchargée
+                </h2>
+                <table className="mt-5 w-full text-[0.93rem]">
+                  <thead>
+                    <tr className="border-b-2 border-liryc-navy text-left">
+                      <th className="pb-2 font-bold">Langue</th>
+                      <th className="pb-2 text-right font-bold">
+                        Téléchargements
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {perLanguage.map((row) => (
+                      <tr
+                        key={row.language}
+                        className="border-b border-liryc-line"
+                      >
+                        <td className="py-2.5">
+                          {languageName(row.language, "fr")}
+                        </td>
+                        <td className="py-2.5 text-right font-bold">
+                          {row.total}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h2 className="text-title-3 leading-title-3 text-liryc-teal">
+                  Derniers lecteurs
+                </h2>
+                <ul className="mt-5 space-y-2.5 text-[0.93rem]">
+                  {recent.map((row, index) => (
+                    <li
+                      key={index}
+                      className="flex flex-wrap justify-between gap-3 border-b border-liryc-line pb-2.5"
+                    >
+                      <span>
+                        <strong>
+                          {row.firstName} {row.lastName}
+                        </strong>{" "}
+                        <span className="text-liryc-ink">
+                          · {row.university} ({countryName(row.country, "fr")})
+                        </span>
                       </span>
-                    </span>
-                    <time dateTime={row.createdAt.toISOString()}>
-                      {row.createdAt.toLocaleDateString("fr-FR")}
-                    </time>
-                  </li>
-                ))}
-              </ul>
+                      <time dateTime={row.createdAt.toISOString()}>
+                        {row.createdAt.toLocaleDateString("fr-FR")}
+                      </time>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
 
@@ -246,7 +357,7 @@ export default async function AdminPage() {
               Export
             </h2>
             <p className="mt-2 text-[0.93rem] leading-relaxed text-liryc-ink">
-              Export CSV des comptes, pour vos rapports d&apos;activité. Ce
+              Export CSV des lecteurs, pour vos rapports d&apos;activité. Ce
               fichier contient des données personnelles : ne le diffusez pas
               hors de l&apos;équipe et supprimez-le après usage.
             </p>

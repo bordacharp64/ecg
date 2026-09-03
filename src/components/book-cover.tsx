@@ -1,4 +1,4 @@
-import type { Book, BookAccent } from "@/../content/livres";
+import type { Book, BookAccent } from "#content/livres.ts";
 
 const accents: Record<BookAccent, { from: string; to: string; trace: string }> = {
   teal: { from: "#044251", to: "#086d84", trace: "#47bad4" },
@@ -15,10 +15,13 @@ const accents: Record<BookAccent, { from: string; to: string; trace: string }> =
  */
 export function BookCover({
   book,
+  volumeLabel,
   className = "",
   decorative = false,
 }: {
   book: Book;
+  /** Libelle traduit du volume, par ex. « Volume 1 ». */
+  volumeLabel?: string;
   className?: string;
   /**
    * `true` pour les couvertures d'arriere-plan d'une pile : seul le visuel est
@@ -32,7 +35,11 @@ export function BookCover({
 
   return (
     <div
-      className={`relative aspect-[3/4] w-full overflow-hidden ${className}`}
+      // `@container` : la typographie est dimensionnee en pourcentage de la
+      // largeur de la couverture (unites cqw), si bien qu'un titre long reste
+      // dans le cadre aussi bien sur une vignette de 150 px que sur la grande
+      // couverture d'une fiche.
+      className={`@container relative aspect-[3/4] w-full overflow-hidden ${className}`}
       role={decorative ? "presentation" : "img"}
       aria-label={
         decorative
@@ -73,21 +80,42 @@ export function BookCover({
       </svg>
 
       {decorative ? null : (
-      <div className="relative flex h-full flex-col justify-between p-6 text-white">
+      <div
+        className="relative flex h-full flex-col justify-between text-white"
+        style={{ padding: "clamp(0.75rem, 7cqw, 1.6rem)" }}
+      >
         <div>
-          <p className="text-[0.62rem] font-bold tracking-[0.2em] uppercase opacity-85">
+          <p
+            className="font-bold tracking-[0.2em] uppercase opacity-85"
+            style={{ fontSize: "clamp(0.44rem, 3.4cqw, 0.66rem)" }}
+          >
             IHU Liryc
           </p>
-          <p className="mt-0.5 text-[0.62rem] font-bold tracking-[0.2em] uppercase opacity-70">
-            {book.volume}
+          <p
+            className="mt-0.5 font-bold tracking-[0.2em] uppercase opacity-70"
+            style={{ fontSize: "clamp(0.44rem, 3.4cqw, 0.66rem)" }}
+          >
+            {volumeLabel ?? `Volume ${book.volume}`}
           </p>
         </div>
 
-        <div>
-          <p className="text-[1.28rem] leading-[1.5rem] font-black">
+        <div lang={book.language}>
+          <p
+            className="font-black hyphens-auto"
+            style={{
+              fontSize: "clamp(0.8rem, 7.6cqw, 1.45rem)",
+              lineHeight: 1.15,
+            }}
+          >
             {book.title}
           </p>
-          <p className="mt-2 text-[0.78rem] leading-[1.1rem] opacity-85">
+          <p
+            className="mt-2 opacity-85"
+            style={{
+              fontSize: "clamp(0.55rem, 4.4cqw, 0.85rem)",
+              lineHeight: 1.35,
+            }}
+          >
             {book.subtitle}
           </p>
         </div>
