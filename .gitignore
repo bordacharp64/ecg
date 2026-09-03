@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+.env
+.env.local
+.env*.local
+next-env.d.ts
+*.tsbuildinfo
+
+# Les PDF ne sont jamais versionnes : ils vivent dans le stockage prive
+# (systeme de fichiers monte ou bucket S3). Voir README.md.
+private/livres/*.pdf
+private/livres/*.PDF
+
+.DS_Store
+npm-debug.log*

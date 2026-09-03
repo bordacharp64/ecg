@@ -1,0 +1,40 @@
+# Environnement de developpement local : une base PostgreSQL et une boite
+# e-mail de test. Aucun de ces deux services n'est destine a la production.
+#
+#   docker compose up -d
+#   npm run db:push
+#   npm run dev
+#
+# Les e-mails envoyes par le site sont consultables sur http://localhost:8025
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ecg
+      POSTGRES_PASSWORD: ecg
+      POSTGRES_DB: ecg
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecg -d ecg"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Serveur SMTP de test : capture les e-mails au lieu de les envoyer.
+  # Pour l'utiliser, mettre dans .env.local :
+  #   SMTP_HOST="localhost"
+  #   SMTP_PORT="1025"
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # interface web
+
+volumes:
+  pgdata:
